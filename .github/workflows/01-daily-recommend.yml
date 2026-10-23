@@ -1,0 +1,73 @@
+name: 每日智能选股推荐
+
+on:
+  # 定时触发 - 每个交易日北京时间 17:30 (UTC 09:30)，收盘后选股
+  schedule:
+    - cron: '30 9 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: '选股策略'
+        required: true
+        default: 'momentum_quality'
+        type: choice
+        options:
+          - momentum_quality   # 趋势质量（中线）
+          - balanced_alpha     # 均衡阿尔法
+          - blue_chip_income   # 蓝筹红利
+          - quality_value      # 质量价值
+          - oversold_reversal  # 超跌反转
+          - capital_heat       # 资金热度
+      top:
+        description: '推荐数量'
+        required: false
+        default: '3'
+        type: string
+
+concurrency:
+  group: stock-recommend
+  cancel-in-progress: false
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 运行智能选股 + 深度分析 + 推送
+        env:
+          SCREENING_ENABLED: 'true'
+          # LLM 渠道（主：火山引擎；兜底：DeepSeek）
+          LLM_CHANNELS: ${{ vars.LLM_CHANNELS || secrets.LLM_CHANNELS }}
+          LLM_PRIMARY_BASE_URL: ${{ vars.LLM_PRIMARY_BASE_URL || secrets.LLM_PRIMARY_BASE_URL }}
+          LLM_PRIMARY_API_KEY: ${{ secrets.LLM_PRIMARY_API_KEY }}
+          LLM_PRIMARY_MODELS: ${{ vars.LLM_PRIMARY_MODELS || secrets.LLM_PRIMARY_MODELS }}
+          LLM_DEEPSEEK_BASE_URL: ${{ vars.LLM_DEEPSEEK_BASE_URL || secrets.LLM_DEEPSEEK_BASE_URL }}
+          LLM_DEEPSEEK_API_KEY: ${{ secrets.LLM_DEEPSEEK_API_KEY }}
+          LLM_DEEPSEEK_MODELS: ${{ vars.LLM_DEEPSEEK_MODELS || secrets.LLM_DEEPSEEK_MODELS }}
+          LITELLM_MODEL: ${{ vars.LITELLM_MODEL || secrets.LITELLM_MODEL }}
+          LITELLM_FALLBACK_MODELS: ${{ vars.LITELLM_FALLBACK_MODELS || secrets.LITELLM_FALLBACK_MODELS }}
+          # 兼容 legacy 配置
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || secrets.OPENAI_MODEL }}
+          # 推送渠道
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python scripts/daily_recommend.py \
+            --strategy "${{ github.event.inputs.strategy || 'momentum_quality' }}" \
+            --top "${{ github.event.inputs.top || '3' }}"
