@@ -48,6 +48,8 @@ jobs:
       - name: 运行智能选股 + 深度分析 + 推送
         env:
           SCREENING_ENABLED: 'true'
+          # 全市场快照数据源优先级（GitHub 海外 runner 上 sina 常被限制只返回 2 行，efinance 优先）
+          SNAPSHOT_SOURCE_PRIORITY: ${{ vars.SNAPSHOT_SOURCE_PRIORITY || 'efinance,akshare_em,em_datacenter,sina' }}
           # LLM 渠道（主：火山引擎；兜底：DeepSeek）
           LLM_CHANNELS: ${{ vars.LLM_CHANNELS || secrets.LLM_CHANNELS }}
           LLM_PRIMARY_BASE_URL: ${{ vars.LLM_PRIMARY_BASE_URL || secrets.LLM_PRIMARY_BASE_URL }}
@@ -68,6 +70,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python scripts/daily_recommend.py \
-            --strategy "${{ github.event.inputs.strategy || 'momentum_quality' }}" \
-            --top "${{ github.event.inputs.top || '3' }}"
+          for attempt in 1 2 3; do
+            echo "===== 第 ${attempt} 次尝试 ====="
+            if python scripts/daily_recommend.py \
+              --strategy "${{ github.event.inputs.strategy || 'momentum_quality' }}" \
+              --top "${{ github.event.inputs.top || '3' }}"; then
+              exit 0
+            fi
+            echo "第 ${attempt} 次失败，60 秒后重试"
+            sleep 60
+          done
+          exit 1
