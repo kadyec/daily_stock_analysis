@@ -1,9 +1,8 @@
 name: 每日智能选股推荐
 
 on:
-  # 定时触发 - 每个交易日北京时间 17:30 (UTC 09:30)，收盘后选股
-  schedule:
-    - cron: '30 9 * * 1-5'
+  # 注意：A股全市场快照数据源封锁 GitHub 海外 runner IP，定时任务已迁移到本地运行，
+  # 此处仅保留手动触发作为备用（需碰运气，数据源大概率不可用）。
   workflow_dispatch:
     inputs:
       strategy:
